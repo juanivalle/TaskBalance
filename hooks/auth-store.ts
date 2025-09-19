@@ -70,10 +70,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const loadStoredAuth = useCallback(async () => {
     try {
-      // Clear storage for testing - remove this in production
-      await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
-      await AsyncStorage.removeItem(TOKEN_STORAGE_KEY);
-      
       const stored = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
       if (stored) {
         const user: User = JSON.parse(stored);
@@ -133,18 +129,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const register = useCallback(async (credentials: RegisterCredentials, remember: boolean = true): Promise<boolean> => {
     try {
-      console.log('=== STARTING REGISTRATION PROCESS ===');
-      console.log('Registration credentials:', { 
-        email: credentials.email, 
-        name: credentials.name,
-        passwordLength: credentials.password.length 
-      });
-      
       setError(null);
       setAuthState(prev => ({ ...prev, isLoading: true }));
 
       // Validate credentials before sending
-      console.log('Validating credentials...');
       if (!credentials.email || !credentials.email.trim()) {
         throw new Error('El email es requerido');
       }
@@ -156,29 +144,22 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       if (!credentials.name || !credentials.name.trim()) {
         throw new Error('El nombre es requerido');
       }
-      console.log('Credentials validation passed');
 
-      // Direct call to register without pre-tests
-      console.log('Calling tRPC register mutation directly...');
       const result = await standaloneClient.auth.register.mutate({
         email: credentials.email.trim(),
         password: credentials.password,
         name: credentials.name.trim(),
       });
-      console.log('tRPC register mutation successful:', result);
 
       // Validate response
       if (!result || !result.user || !result.token) {
-        console.error('Invalid response from server:', result);
         throw new Error('Respuesta inválida del servidor');
       }
 
       // Store auth if remember is enabled
       if (remember) {
-        console.log('Storing auth data in AsyncStorage...');
         await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(result.user));
         await AsyncStorage.setItem(TOKEN_STORAGE_KEY, result.token);
-        console.log('Auth data stored successfully');
       }
 
       setAuthState({
@@ -187,21 +168,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         isLoading: false,
       });
 
-      console.log('=== REGISTRATION COMPLETED SUCCESSFULLY ===');
       return true;
     } catch (err: any) {
-      console.error('=== REGISTRATION ERROR ===');
-      console.error('Register error details:', {
-        error: err,
-        message: err?.message,
-        data: err?.data,
-        shape: err?.shape,
-        cause: err?.cause,
-        stack: err?.stack,
-        name: err?.name,
-        code: err?.code
-      });
-      
       let message = 'Error al crear la cuenta. Inténtalo de nuevo.';
       
       // Try to extract a more specific error message
@@ -228,7 +196,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         message = 'Error de comunicación con el servidor. Inténtalo de nuevo.';
       }
       
-      console.error('Final error message:', message);
       setError({ message });
       setAuthState(prev => ({ ...prev, isLoading: false }));
       return false;
@@ -242,16 +209,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       // For demo purposes, simulate Google authentication
       // In production, implement proper OAuth flow
-      console.log('Simulating Google authentication...');
-      
-      // First test the connection
-      try {
-        const healthResult = await standaloneClient.health.query();
-        console.log('Google auth - tRPC health check successful:', healthResult);
-      } catch (healthError) {
-        console.error('Google auth - tRPC health check failed:', healthError);
-        throw new Error('No se pudo conectar con el servidor');
-      }
       
       // Simulate network delay
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -270,9 +227,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       
       const googleAuthData: GoogleAuthData = selectedAccount;
       
-      console.log('Calling Google auth backend with data:', googleAuthData);
       const authResult = await standaloneClient.auth.googleAuth.mutate(googleAuthData);
-      console.log('Google auth successful:', authResult);
 
       // Store auth data
       await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authResult.user));
@@ -286,15 +241,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       return true;
     } catch (err: any) {
-      console.error('Google auth error details:', {
-        error: err,
-        message: err?.message,
-        data: err?.data,
-        shape: err?.shape,
-        cause: err?.cause,
-        stack: err?.stack
-      });
-      
       let message = 'Error al iniciar sesión con Google.';
       
       if (err?.message) {

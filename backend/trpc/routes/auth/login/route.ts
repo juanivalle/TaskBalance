@@ -15,26 +15,12 @@ const loginSchema = z.object({
 export const loginProcedure = publicProcedure
   .input(loginSchema)
   .mutation(async ({ input }) => {
-    console.log('=== LOGIN PROCEDURE START ===');
-    console.log('Login attempt with email:', input.email);
-    
     const { email, password } = input;
 
     // Find user by email
-    console.log('Searching for user with email:', email);
-    console.log('Email to search (trimmed, lowercase):', email.toLowerCase().trim());
-    
-    // Debug: List all users in storage
-    const { getAllUsers } = await import('../user-storage');
-    const allUsers = getAllUsers();
-    console.log('All users in storage:', allUsers.map(u => ({ id: u.id, email: u.email, provider: u.provider })));
-    
     const user = findUserByEmail(email);
-    console.log('User found:', user ? { id: user.id, email: user.email, provider: user.provider } : 'No user found');
     
     if (!user) {
-      console.log('Login failed: User not found');
-      console.log('Available emails:', allUsers.map(u => u.email));
       throw new TRPCError({
         code: 'UNAUTHORIZED',
         message: 'Credenciales inválidas',
@@ -50,21 +36,9 @@ export const loginProcedure = publicProcedure
     }
 
     // Verify password
-    console.log('Verifying password...');
-    console.log('Stored password hash:', user.password.substring(0, 20) + '...');
     const isValidPassword = await bcrypt.compare(password, user.password);
-    console.log('Password verification result:', isValidPassword);
     
     if (!isValidPassword) {
-      console.log('Login failed: Invalid password');
-      console.log('Input password:', password);
-      console.log('Stored hash:', user.password);
-      console.log('bcrypt.compare result:', isValidPassword);
-      
-      // Try a direct comparison for debugging
-      const directMatch = password === user.password;
-      console.log('Direct password match (for debugging):', directMatch);
-      
       throw new TRPCError({
         code: 'UNAUTHORIZED',
         message: 'Credenciales inválidas',
@@ -82,7 +56,7 @@ export const loginProcedure = publicProcedure
       { expiresIn: '7d' }
     );
 
-    const result = {
+    return {
       user: {
         id: user.id,
         email: user.email,
@@ -90,8 +64,4 @@ export const loginProcedure = publicProcedure
       },
       token,
     };
-    
-    console.log('Login successful for user:', user.email);
-    console.log('=== LOGIN PROCEDURE END ===');
-    return result;
   });
