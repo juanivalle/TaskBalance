@@ -173,22 +173,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       if (process.env.NODE_ENV === 'production') {
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        const mockUser: User = {
-          id: 'demo_user_' + Date.now(),
-          email: credentials.email.trim(),
-          name: credentials.name.trim(),
-        };
-        
-        if (remember) {
-          await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(mockUser));
-          await AsyncStorage.setItem(TOKEN_STORAGE_KEY, 'demo_token_' + Date.now());
-        }
-        
+        // Don't auto-login in production mode either
         setAuthState({
-          user: mockUser,
-          isAuthenticated: true,
+          user: null,
+          isAuthenticated: false,
           isLoading: false,
         });
+        
+        // Show success message
+        setError({ message: 'Cuenta creada exitosamente. Por favor inicia sesión.' });
         
         return true;
       }
@@ -200,21 +193,19 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       });
 
       // Validate response
-      if (!result || !result.user || !result.token) {
-        throw new Error('Respuesta inválida del servidor');
+      if (!result || !result.success) {
+        throw new Error(result?.message || 'Respuesta inválida del servidor');
       }
 
-      // Store auth if remember is enabled
-      if (remember) {
-        await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(result.user));
-        await AsyncStorage.setItem(TOKEN_STORAGE_KEY, result.token);
-      }
-
+      // Don't auto-login after registration
       setAuthState({
-        user: result.user,
-        isAuthenticated: true,
+        user: null,
+        isAuthenticated: false,
         isLoading: false,
       });
+
+      // Show success message
+      setError({ message: result.message });
 
       return true;
     } catch (err: any) {

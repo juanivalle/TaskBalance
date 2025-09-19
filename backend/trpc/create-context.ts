@@ -38,9 +38,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-producti
 
 // Authentication middleware
 const authMiddleware = t.middleware(async ({ ctx, next }) => {
+  console.log('=== AUTH MIDDLEWARE START ===');
   const authHeader = ctx.req.headers.get('authorization');
+  console.log('Authorization header:', authHeader);
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('No valid authorization header found');
     throw new TRPCError({
       code: 'UNAUTHORIZED',
       message: 'Token de autenticación requerido',
@@ -48,6 +51,7 @@ const authMiddleware = t.middleware(async ({ ctx, next }) => {
   }
   
   const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+  console.log('Extracted token:', token.substring(0, 20) + '...');
   
   try {
     // Handle demo tokens for development/testing
@@ -61,6 +65,9 @@ const authMiddleware = t.middleware(async ({ ctx, next }) => {
         name: 'Usuario Demo',
       };
       
+      console.log('Demo user authenticated:', demoUser);
+      console.log('=== AUTH MIDDLEWARE SUCCESS (DEMO) ===');
+      
       return next({
         ctx: {
           ...ctx,
@@ -70,11 +77,15 @@ const authMiddleware = t.middleware(async ({ ctx, next }) => {
     }
     
     // Handle real JWT tokens
+    console.log('Verifying JWT token...');
     const decoded = jwt.verify(token, JWT_SECRET) as {
       userId: string;
       email: string;
       name: string;
     };
+    
+    console.log('JWT token verified, user:', { userId: decoded.userId, email: decoded.email });
+    console.log('=== AUTH MIDDLEWARE SUCCESS (JWT) ===');
     
     return next({
       ctx: {
@@ -83,7 +94,9 @@ const authMiddleware = t.middleware(async ({ ctx, next }) => {
       },
     });
   } catch (error) {
+    console.error('=== AUTH MIDDLEWARE ERROR ===');
     console.error('Token verification failed:', error);
+    console.error('Token was:', token.substring(0, 50) + '...');
     throw new TRPCError({
       code: 'UNAUTHORIZED',
       message: 'Token de autenticación inválido',

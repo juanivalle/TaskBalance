@@ -75,10 +75,17 @@ export class HouseholdRepository {
   }
 
   async create(householdData: CreateHouseholdData): Promise<Household> {
+    console.log('=== HOUSEHOLD REPOSITORY CREATE START ===');
+    console.log('Input data:', householdData);
+    console.log('Is production:', isProduction);
+    
     const id = `household_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const now = new Date().toISOString();
+    console.log('Generated ID:', id);
+    console.log('Timestamp:', now);
     
     if (isProduction) {
+      console.log('Using PostgreSQL for household creation');
       // PostgreSQL transaction
       await sql`BEGIN`;
       try {
@@ -130,13 +137,19 @@ export class HouseholdRepository {
       });
       
       transaction();
+      console.log('SQLite transaction completed successfully');
     }
     
+    console.log('Attempting to find created household with ID:', id);
     const newHousehold = await this.findById(id);
+    console.log('Found household:', newHousehold);
+    
     if (!newHousehold) {
+      console.error('Failed to find created household');
       throw new Error('Failed to create household');
     }
     
+    console.log('=== HOUSEHOLD REPOSITORY CREATE SUCCESS ===');
     return newHousehold;
   }
 

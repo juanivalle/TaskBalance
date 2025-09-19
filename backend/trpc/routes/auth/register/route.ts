@@ -1,11 +1,8 @@
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { publicProcedure } from '@/backend/trpc/create-context';
 import { TRPCError } from '@trpc/server';
 import { userRepository } from '@/backend/database/repositories/user-repository';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 const registerSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -82,32 +79,15 @@ export const registerProcedure = publicProcedure
         });
       }
 
-      // Generate JWT token
-      let token: string;
-      try {
-        token = jwt.sign(
-          { 
-            userId: newUser.id, 
-            email: newUser.email,
-            name: newUser.name 
-          },
-          JWT_SECRET,
-          { expiresIn: '7d' }
-        );
-      } catch {
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Error al generar el token de autenticación',
-        });
-      }
-
+      // Return success without token to prevent auto-login
       return {
+        success: true,
+        message: 'Cuenta creada exitosamente. Por favor inicia sesión.',
         user: {
           id: newUser.id,
           email: newUser.email,
           name: newUser.name,
         },
-        token,
       };
     } catch (error) {
       // If it's already a TRPCError, re-throw it
