@@ -14,7 +14,7 @@ import Slider from '@react-native-community/slider';
 import { X, Plus, Target, DollarSign, Percent } from 'lucide-react-native';
 import { useGoals } from '@/hooks/goals-store';
 import { useFinance } from '@/hooks/finance-store';
-import { formatCurrency } from '@/constants/currencies';
+import { formatCurrency, convertCurrency } from '@/constants/currencies';
 import type { Goal } from '@/types/goals';
 
 interface ContributeModalProps {
@@ -25,7 +25,7 @@ interface ContributeModalProps {
 
 export function ContributeModal({ visible, goal, onClose }: ContributeModalProps) {
   const { contributeToGoal } = useGoals();
-  const { summary } = useFinance();
+  const { summary, currencySettings } = useFinance();
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -77,14 +77,30 @@ export function ContributeModal({ visible, goal, onClose }: ContributeModalProps
     if (contributionMode === 'manual') {
       return parseFloat(amount) || 0;
     } else {
-      return (summary.annualSavings * percentage) / 100;
+      // Convert annual savings from base currency to goal currency
+      const savingsInGoalCurrency = convertCurrency(
+        summary.annualSavings,
+        currencySettings.baseCurrency,
+        goal?.currency || 'UYU',
+        currencySettings.exchangeRates
+      );
+      return (savingsInGoalCurrency * percentage) / 100;
     }
   };
 
   const handleContributeAll = () => {
     if (!goal) return;
     const remaining = goal.targetAmount - goal.currentAmount;
-    const available = Math.min(remaining, summary.annualSavings);
+    
+    // Convert annual savings from base currency to goal currency
+    const savingsInGoalCurrency = convertCurrency(
+      summary.annualSavings,
+      currencySettings.baseCurrency,
+      goal.currency,
+      currencySettings.exchangeRates
+    );
+    
+    const available = Math.min(remaining, savingsInGoalCurrency);
     setAmount(available.toString());
     setContributionMode('manual');
   };

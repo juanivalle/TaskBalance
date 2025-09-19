@@ -14,6 +14,7 @@ import type {
   CreateRewardData,
 } from '@/types/home';
 import { useAuth } from './auth-store';
+import { trpcClient } from '@/lib/trpc';
 
 const HOUSEHOLDS_STORAGE_KEY = 'taskbalance_households';
 const INVITATIONS_STORAGE_KEY = 'taskbalance_invitations';
@@ -297,30 +298,38 @@ export const [HomeProvider, useHome] = createContextHook(() => {
 
   const createHousehold = async (data: { name: string; description?: string }) => {
     try {
-      const householdId = Date.now().toString();
-      const newHousehold: Household = {
-        id: householdId,
+      console.log('Creating household via API:', data);
+      
+      const newHousehold = await trpcClient.household.create.mutate({
         name: data.name,
         description: data.description,
-        createdAt: new Date().toISOString(),
-        members: [
-          {
-            id: Date.now().toString(),
-            userId: user?.id || '1',
-            householdId: householdId,
-            name: user?.name || 'Usuario',
-            email: user?.email || 'usuario@ejemplo.com',
-            points: 0,
-            role: 'owner',
-            joinedAt: new Date().toISOString(),
-          },
-        ],
+        currency: 'UYU',
+      });
+      
+      console.log('Household created via API:', newHousehold);
+      
+      // Convert API response to our format
+      const householdForState: Household = {
+        id: newHousehold.id,
+        name: newHousehold.name,
+        description: newHousehold.description || undefined,
+        createdAt: newHousehold.createdAt,
+        members: newHousehold.members.map(member => ({
+          id: member.id,
+          userId: member.userId,
+          householdId: member.householdId,
+          name: member.name,
+          email: member.email,
+          points: member.points,
+          role: member.role as 'owner' | 'member',
+          joinedAt: member.joinedAt,
+        })),
       };
       
-      const updatedHouseholds = [...households, newHousehold];
+      const updatedHouseholds = [...households, householdForState];
       setHouseholds(updatedHouseholds);
       setError(null);
-      console.log('Household created successfully:', newHousehold);
+      console.log('Household added to state:', householdForState);
     } catch (err) {
       console.error('Error creating household:', err);
       setError('Error al crear el hogar');

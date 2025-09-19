@@ -6,6 +6,7 @@ import { loginProcedure } from "./routes/auth/login/route";
 import { googleAuthProcedure } from "./routes/auth/google/route";
 import { getUserProfileProcedure } from "./routes/user/profile/route";
 import { getDatabaseStatusProcedure } from "./routes/database/status/route";
+import { createHouseholdProcedure } from "./routes/household/create/route";
 
 
 export const appRouter = createTRPCRouter({
@@ -25,6 +26,9 @@ export const appRouter = createTRPCRouter({
   }),
   user: createTRPCRouter({
     profile: getUserProfileProcedure,
+  }),
+  household: createTRPCRouter({
+    create: createHouseholdProcedure,
   }),
 });
 
