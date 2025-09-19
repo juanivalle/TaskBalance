@@ -1,4 +1,4 @@
-import { handle } from '@hono/node-server/vercel';
-import app from '../backend/hono.js';
+const { handle } = require('@hono/node-server/vercel');
+const app = require('../backend/hono.js').default;
 
-export default handle(app);
+module.exports = handle(app);
