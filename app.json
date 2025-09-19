@@ -22,7 +22,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.personal-finance-organizer-acv7uhe"
+      "package": "com.taskbalance"
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
