@@ -1,6 +1,7 @@
 import { createTRPCReact } from "@trpc/react-query";
 import { httpLink, createTRPCClient } from "@trpc/client";
 import superjson from "superjson";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AppRouter } from "@/backend/trpc/app-router";
 
 export const trpc = createTRPCReact<AppRouter>();
@@ -84,7 +85,7 @@ const createTrpcClient = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        fetch: (url, options) => {
+        fetch: async (url, options) => {
           if (!url || typeof url !== 'string') {
             console.error('Invalid URL provided:', url);
             throw new Error('Invalid URL provided');
@@ -99,17 +100,26 @@ const createTrpcClient = () => {
             }));
           }
           
+          // Get auth token from AsyncStorage
+          const token = await AsyncStorage.getItem('taskbalance_token');
+          const authHeaders: Record<string, string> = {};
+          if (token) {
+            authHeaders.Authorization = `Bearer ${token}`;
+          }
+          
           console.log('=== tRPC REQUEST START ===');
           console.log('URL:', url);
           console.log('Method:', options?.method);
-          console.log('Headers:', options?.headers);
+          console.log('Headers:', { ...options?.headers, ...authHeaders });
           console.log('Body:', options?.body);
+          console.log('Auth Token:', token ? 'Present' : 'Not found');
           
           return fetch(url, {
             ...options,
             headers: {
               'Content-Type': 'application/json',
               ...options?.headers,
+              ...authHeaders,
             },
           }).then(async response => {
             console.log('=== tRPC RESPONSE RECEIVED ===');
@@ -189,16 +199,25 @@ export const standaloneClient = createTRPCClient<AppRouter>({
       headers: {
         'Content-Type': 'application/json',
       },
-      fetch: (url, options) => {
+      fetch: async (url, options) => {
         if (!url || typeof url !== 'string') {
           throw new Error('Invalid URL provided');
         }
-        console.log('Standalone tRPC request:', { url, method: options?.method, body: options?.body });
+        
+        // Get auth token from AsyncStorage
+        const token = await AsyncStorage.getItem('taskbalance_token');
+        const authHeaders: Record<string, string> = {};
+        if (token) {
+          authHeaders.Authorization = `Bearer ${token}`;
+        }
+        
+        console.log('Standalone tRPC request:', { url, method: options?.method, body: options?.body, hasToken: !!token });
         return fetch(url, {
           ...options,
           headers: {
             'Content-Type': 'application/json',
             ...options?.headers,
+            ...authHeaders,
           },
         }).then(async response => {
           console.log('Standalone tRPC response:', { status: response.status, statusText: response.statusText });

@@ -80,7 +80,7 @@ export class HouseholdRepository {
       `);
       
       const memberId = `member_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      insertMember.run(memberId, id, householdData.createdBy, 'admin', now);
+      insertMember.run(memberId, id, householdData.createdBy, 'owner', now);
     });
     
     transaction();

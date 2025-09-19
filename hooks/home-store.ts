@@ -14,7 +14,7 @@ import type {
   CreateRewardData,
 } from '@/types/home';
 import { useAuth } from './auth-store';
-import { trpcClient } from '@/lib/trpc';
+import { standaloneClient } from '@/lib/trpc';
 
 const HOUSEHOLDS_STORAGE_KEY = 'taskbalance_households';
 const INVITATIONS_STORAGE_KEY = 'taskbalance_invitations';
@@ -300,7 +300,8 @@ export const [HomeProvider, useHome] = createContextHook(() => {
     try {
       console.log('Creating household via API:', data);
       
-      const newHousehold = await trpcClient.household.create.mutate({
+      // Use the standalone client for mutations
+      const newHousehold = await standaloneClient.household.create.mutate({
         name: data.name,
         description: data.description,
         currency: 'UYU',
