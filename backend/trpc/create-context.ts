@@ -50,6 +50,26 @@ const authMiddleware = t.middleware(async ({ ctx, next }) => {
   const token = authHeader.substring(7); // Remove 'Bearer ' prefix
   
   try {
+    // Handle demo tokens for development/testing
+    if (token.startsWith('demo_token_') || token.startsWith('google_token_')) {
+      console.log('Using demo token for authentication');
+      
+      // Extract user info from stored auth or create a demo user
+      const demoUser = {
+        userId: token.includes('google') ? 'google_demo_user' : 'demo_user_123',
+        email: 'demo@taskbalance.com',
+        name: 'Usuario Demo',
+      };
+      
+      return next({
+        ctx: {
+          ...ctx,
+          user: demoUser,
+        },
+      });
+    }
+    
+    // Handle real JWT tokens
     const decoded = jwt.verify(token, JWT_SECRET) as {
       userId: string;
       email: string;
@@ -62,7 +82,8 @@ const authMiddleware = t.middleware(async ({ ctx, next }) => {
         user: decoded,
       },
     });
-  } catch {
+  } catch (error) {
+    console.error('Token verification failed:', error);
     throw new TRPCError({
       code: 'UNAUTHORIZED',
       message: 'Token de autenticación inválido',
