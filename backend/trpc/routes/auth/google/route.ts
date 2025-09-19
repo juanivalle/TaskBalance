@@ -50,12 +50,12 @@ export const googleAuthProcedure = publicProcedure
 
       // Check if user exists by Google ID
       console.log('Checking if user exists by Google ID...');
-      let user = userRepository.findByGoogleId(googleId);
+      let user = await userRepository.findByGoogleId(googleId);
       
       if (!user) {
         console.log('User not found by Google ID, checking by email...');
         // Check if user exists by email (might have registered with email/password)
-        const existingUser = userRepository.findByEmail(email);
+        const existingUser = await userRepository.findByEmail(email);
         if (existingUser && existingUser.provider === 'email') {
           console.log('User exists with email provider, throwing conflict error');
           throw new TRPCError({
@@ -66,7 +66,7 @@ export const googleAuthProcedure = publicProcedure
 
         // Create new user
         console.log('Creating new Google user...');
-        user = userRepository.create({
+        user = await userRepository.create({
           email: email.toLowerCase().trim(),
           name: name.trim(),
           provider: 'google',

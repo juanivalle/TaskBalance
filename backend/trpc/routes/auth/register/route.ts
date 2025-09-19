@@ -46,7 +46,7 @@ export const registerProcedure = publicProcedure
       }
 
       // Check if user already exists
-      const existingUser = userRepository.findByEmail(email);
+      const existingUser = await userRepository.findByEmail(email);
       if (existingUser) {
         throw new TRPCError({
           code: 'CONFLICT',
@@ -69,7 +69,7 @@ export const registerProcedure = publicProcedure
       // Create user
       let newUser;
       try {
-        newUser = userRepository.create({
+        newUser = await userRepository.create({
           email: email.toLowerCase().trim(),
           password: hashedPassword,
           name: name.trim(),

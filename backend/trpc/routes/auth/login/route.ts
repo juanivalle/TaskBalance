@@ -18,7 +18,7 @@ export const loginProcedure = publicProcedure
     const { email, password } = input;
 
     // Find user by email
-    const user = userRepository.findByEmail(email);
+    const user = await userRepository.findByEmail(email);
     
     if (!user) {
       throw new TRPCError({

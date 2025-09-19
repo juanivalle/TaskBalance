@@ -3,7 +3,7 @@ import { userRepository } from '@/backend/database/repositories/user-repository'
 
 export const getUserProfileProcedure = protectedProcedure
   .query(async ({ ctx }) => {
-    const user = userRepository.findById(ctx.user.userId);
+    const user = await userRepository.findById(ctx.user.userId);
     
     if (!user) {
       throw new Error('User not found');
