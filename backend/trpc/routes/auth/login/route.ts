@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { publicProcedure } from '@/backend/trpc/create-context';
 import { TRPCError } from '@trpc/server';
-import { findUserByEmail } from '../user-storage';
+import { userRepository } from '@/backend/database/repositories/user-repository';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -18,7 +18,7 @@ export const loginProcedure = publicProcedure
     const { email, password } = input;
 
     // Find user by email
-    const user = findUserByEmail(email);
+    const user = userRepository.findByEmail(email);
     
     if (!user) {
       throw new TRPCError({
@@ -27,8 +27,8 @@ export const loginProcedure = publicProcedure
       });
     }
 
-    // Check if user registered with Google
-    if (user.provider === 'google') {
+    // Check if user registered with Google or has no password
+    if (user.provider === 'google' || !user.password) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
         message: 'Esta cuenta fue creada con Google. Por favor inicia sesión con Google.',

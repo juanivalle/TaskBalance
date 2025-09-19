@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { appRouter } from "./trpc/app-router";
 import { createContext } from "./trpc/create-context";
+import './database/connection'; // Initialize database on startup
 
 // app will be mounted at /api
 const app = new Hono();

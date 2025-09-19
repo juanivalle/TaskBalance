@@ -2,7 +2,7 @@ import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import { publicProcedure } from '@/backend/trpc/create-context';
 import { TRPCError } from '@trpc/server';
-import { findUserByGoogleId, findUserByEmail, createUser } from '../user-storage';
+import { userRepository } from '@/backend/database/repositories/user-repository';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -50,12 +50,12 @@ export const googleAuthProcedure = publicProcedure
 
       // Check if user exists by Google ID
       console.log('Checking if user exists by Google ID...');
-      let user = findUserByGoogleId(googleId);
+      let user = userRepository.findByGoogleId(googleId);
       
       if (!user) {
         console.log('User not found by Google ID, checking by email...');
         // Check if user exists by email (might have registered with email/password)
-        const existingUser = findUserByEmail(email);
+        const existingUser = userRepository.findByEmail(email);
         if (existingUser && existingUser.provider === 'email') {
           console.log('User exists with email provider, throwing conflict error');
           throw new TRPCError({
@@ -66,9 +66,8 @@ export const googleAuthProcedure = publicProcedure
 
         // Create new user
         console.log('Creating new Google user...');
-        user = createUser({
+        user = userRepository.create({
           email: email.toLowerCase().trim(),
-          password: '', // No password for Google users
           name: name.trim(),
           provider: 'google',
           googleId: googleId.trim(),

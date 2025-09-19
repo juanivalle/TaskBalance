@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { publicProcedure } from '@/backend/trpc/create-context';
 import { TRPCError } from '@trpc/server';
-import { findUserByEmail, createUser } from '../user-storage';
+import { userRepository } from '@/backend/database/repositories/user-repository';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -46,7 +46,7 @@ export const registerProcedure = publicProcedure
       }
 
       // Check if user already exists
-      const existingUser = findUserByEmail(email);
+      const existingUser = userRepository.findByEmail(email);
       if (existingUser) {
         throw new TRPCError({
           code: 'CONFLICT',
@@ -69,7 +69,7 @@ export const registerProcedure = publicProcedure
       // Create user
       let newUser;
       try {
-        newUser = createUser({
+        newUser = userRepository.create({
           email: email.toLowerCase().trim(),
           password: hashedPassword,
           name: name.trim(),
