@@ -16,9 +16,13 @@ export const createHouseholdProcedure = protectedProcedure
     const { user } = ctx;
 
     try {
-      console.log('Creating household:', { name, description, currency, userId: user.userId });
+      console.log('=== CREATING HOUSEHOLD START ===');
+      console.log('Input data:', { name, description, currency, userId: user.userId });
+      console.log('User context:', user);
+      console.log('Environment:', process.env.NODE_ENV);
+      console.log('Is Production:', process.env.VERCEL || process.env.NODE_ENV === 'production');
       
-      const household = householdRepository.create({
+      const household = await householdRepository.create({
         name: name.trim(),
         description: description?.trim(),
         currency: currency || 'UYU',
@@ -26,11 +30,12 @@ export const createHouseholdProcedure = protectedProcedure
       });
 
       console.log('Household created successfully:', household);
+      console.log('Getting members for household:', household.id);
       
       // Get members with user details
-      const members = householdRepository.getMembers(household.id);
+      const members = await householdRepository.getMembers(household.id);
       
-      return {
+      const result = {
         ...household,
         members: members.map(member => ({
           id: member.id,
@@ -43,8 +48,15 @@ export const createHouseholdProcedure = protectedProcedure
           points: 0, // Initialize with 0 points
         })),
       };
+      
+      console.log('Final result:', result);
+      console.log('=== CREATING HOUSEHOLD SUCCESS ===');
+      return result;
     } catch (error) {
+      console.error('=== CREATING HOUSEHOLD ERROR ===');
       console.error('Error creating household:', error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      console.error('Error message:', error instanceof Error ? error.message : String(error));
       
       if (error instanceof Error) {
         throw new TRPCError({

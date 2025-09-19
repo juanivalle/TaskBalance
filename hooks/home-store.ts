@@ -298,7 +298,13 @@ export const [HomeProvider, useHome] = createContextHook(() => {
 
   const createHousehold = async (data: { name: string; description?: string }) => {
     try {
-      console.log('Creating household via API:', data);
+      console.log('=== CLIENT: Creating household via API ===');
+      console.log('Input data:', data);
+      console.log('User:', user);
+      
+      if (!user) {
+        throw new Error('Usuario no autenticado');
+      }
       
       // Use the standalone client for mutations
       const newHousehold = await standaloneClient.household.create.mutate({
@@ -307,7 +313,8 @@ export const [HomeProvider, useHome] = createContextHook(() => {
         currency: 'UYU',
       });
       
-      console.log('Household created via API:', newHousehold);
+      console.log('=== CLIENT: Household created via API ===');
+      console.log('API Response:', newHousehold);
       
       // Convert API response to our format
       const householdForState: Household = {
@@ -330,10 +337,16 @@ export const [HomeProvider, useHome] = createContextHook(() => {
       const updatedHouseholds = [...households, householdForState];
       setHouseholds(updatedHouseholds);
       setError(null);
-      console.log('Household added to state:', householdForState);
+      console.log('=== CLIENT: Household added to state ===');
+      console.log('State data:', householdForState);
     } catch (err) {
-      console.error('Error creating household:', err);
-      setError('Error al crear el hogar');
+      console.error('=== CLIENT: Error creating household ===');
+      console.error('Error details:', err);
+      console.error('Error message:', err instanceof Error ? err.message : String(err));
+      console.error('Error stack:', err instanceof Error ? err.stack : 'No stack trace');
+      
+      const errorMessage = err instanceof Error ? err.message : 'Error al crear el hogar';
+      setError(errorMessage);
       throw err;
     }
   };
