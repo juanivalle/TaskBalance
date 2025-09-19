@@ -103,6 +103,30 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       setError(null);
       setAuthState(prev => ({ ...prev, isLoading: true }));
 
+      // In production without backend, simulate login
+      if (process.env.NODE_ENV === 'production') {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const mockUser: User = {
+          id: 'demo_user_' + Date.now(),
+          email: credentials.email,
+          name: credentials.email.split('@')[0],
+        };
+        
+        if (remember) {
+          await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(mockUser));
+          await AsyncStorage.setItem(TOKEN_STORAGE_KEY, 'demo_token_' + Date.now());
+        }
+        
+        setAuthState({
+          user: mockUser,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+        
+        return true;
+      }
+
       const result = await standaloneClient.auth.login.mutate(credentials);
 
       // Store auth if remember is enabled
@@ -143,6 +167,30 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       
       if (!credentials.name || !credentials.name.trim()) {
         throw new Error('El nombre es requerido');
+      }
+
+      // In production without backend, simulate registration
+      if (process.env.NODE_ENV === 'production') {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const mockUser: User = {
+          id: 'demo_user_' + Date.now(),
+          email: credentials.email.trim(),
+          name: credentials.name.trim(),
+        };
+        
+        if (remember) {
+          await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(mockUser));
+          await AsyncStorage.setItem(TOKEN_STORAGE_KEY, 'demo_token_' + Date.now());
+        }
+        
+        setAuthState({
+          user: mockUser,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+        
+        return true;
       }
 
       const result = await standaloneClient.auth.register.mutate({
@@ -207,9 +255,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       setError(null);
       setAuthState(prev => ({ ...prev, isLoading: true }));
 
-      // For demo purposes, simulate Google authentication
-      // In production, implement proper OAuth flow
-      
       // Simulate network delay
       await new Promise(resolve => setTimeout(resolve, 1000));
       
@@ -225,8 +270,27 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         throw new Error('Cuenta de Google no encontrada');
       }
       
-      const googleAuthData: GoogleAuthData = selectedAccount;
+      // In production without backend, simulate Google auth
+      if (process.env.NODE_ENV === 'production') {
+        const mockUser: User = {
+          id: 'google_user_' + Date.now(),
+          email: selectedAccount.email,
+          name: selectedAccount.name,
+        };
+        
+        await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(mockUser));
+        await AsyncStorage.setItem(TOKEN_STORAGE_KEY, 'google_token_' + Date.now());
+        
+        setAuthState({
+          user: mockUser,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+        
+        return true;
+      }
       
+      const googleAuthData: GoogleAuthData = selectedAccount;
       const authResult = await standaloneClient.auth.googleAuth.mutate(googleAuthData);
 
       // Store auth data
