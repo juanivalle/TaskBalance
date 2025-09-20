@@ -16,12 +16,31 @@ export const createHouseholdProcedure = protectedProcedure
     const { user } = ctx;
 
     try {
-      console.log('=== CREATING HOUSEHOLD START ===');
+      console.log('=== BACKEND: CREATING HOUSEHOLD START ===');
       console.log('Input data:', { name, description, currency, userId: user.userId });
       console.log('User context:', user);
       console.log('Environment:', process.env.NODE_ENV);
       console.log('Is Production:', process.env.VERCEL || process.env.NODE_ENV === 'production');
+      console.log('Database connection available:', !!householdRepository);
       
+      // Validate input again on backend
+      if (!name || !name.trim()) {
+        console.error('Backend validation failed: empty name');
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'El nombre del hogar es requerido',
+        });
+      }
+      
+      if (!user || !user.userId) {
+        console.error('Backend validation failed: no user');
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'Usuario no autenticado',
+        });
+      }
+      
+      console.log('Creating household with repository...');
       const household = await householdRepository.create({
         name: name.trim(),
         description: description?.trim(),
@@ -34,6 +53,7 @@ export const createHouseholdProcedure = protectedProcedure
       
       // Get members with user details
       const members = await householdRepository.getMembers(household.id);
+      console.log('Members retrieved:', members);
       
       const result = {
         ...household,
@@ -50,24 +70,45 @@ export const createHouseholdProcedure = protectedProcedure
       };
       
       console.log('Final result:', result);
-      console.log('=== CREATING HOUSEHOLD SUCCESS ===');
+      console.log('=== BACKEND: CREATING HOUSEHOLD SUCCESS ===');
       return result;
     } catch (error) {
-      console.error('=== CREATING HOUSEHOLD ERROR ===');
+      console.error('=== BACKEND: CREATING HOUSEHOLD ERROR ===');
       console.error('Error creating household:', error);
       console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       console.error('Error message:', error instanceof Error ? error.message : String(error));
+      console.error('Error name:', error instanceof Error ? error.name : 'Unknown error type');
+      
+      // If it's already a TRPCError, re-throw it
+      if (error instanceof TRPCError) {
+        throw error;
+      }
       
       if (error instanceof Error) {
+        // Handle specific database errors
+        if (error.message.includes('UNIQUE constraint failed') || error.message.includes('duplicate key')) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'Ya existe un hogar con ese nombre',
+          });
+        }
+        
+        if (error.message.includes('FOREIGN KEY constraint failed') || error.message.includes('foreign key')) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Usuario no válido',
+          });
+        }
+        
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: error.message,
+          message: `Error del servidor: ${error.message}`,
         });
       }
       
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
-        message: 'Error al crear el hogar',
+        message: 'Error desconocido al crear el hogar',
       });
     }
   });

@@ -40,22 +40,36 @@ export function CreateHouseholdModal({ visible, onClose }: CreateHouseholdModalP
   };
 
   const handleSubmit = async () => {
+    console.log('=== MODAL: handleSubmit called ===');
+    console.log('Form data:', formData);
+    
     if (!formData.name.trim()) {
+      console.log('Validation failed: empty name');
       Alert.alert('Error', 'El nombre del hogar es obligatorio');
       return;
     }
 
     try {
+      console.log('Starting household creation...');
       setIsLoading(true);
+      
       await createHousehold({
         name: formData.name.trim(),
         description: formData.description?.trim() || undefined,
       });
+      
+      console.log('Household creation successful, closing modal');
       handleClose();
       Alert.alert('Éxito', 'Hogar creado correctamente');
     } catch (error) {
-      Alert.alert('Error', 'No se pudo crear el hogar');
+      console.error('=== MODAL: Error creating household ===');
+      console.error('Error:', error);
+      console.error('Error message:', error instanceof Error ? error.message : String(error));
+      
+      const errorMessage = error instanceof Error ? error.message : 'No se pudo crear el hogar';
+      Alert.alert('Error', errorMessage);
     } finally {
+      console.log('Setting loading to false');
       setIsLoading(false);
     }
   };
