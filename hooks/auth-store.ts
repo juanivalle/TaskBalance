@@ -103,14 +103,30 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       setError(null);
       setAuthState(prev => ({ ...prev, isLoading: true }));
 
-      // In production without backend, simulate login
+      console.log('Starting login process...');
+
+      // In production without backend, simulate login with validation
       if (process.env.NODE_ENV === 'production') {
         await new Promise(resolve => setTimeout(resolve, 1000));
         
+        // Check if user exists in demo storage
+        const existingUsers = await AsyncStorage.getItem('demo_users');
+        const users = existingUsers ? JSON.parse(existingUsers) : [];
+        
+        const user = users.find((u: any) => u.email.toLowerCase() === credentials.email.toLowerCase().trim());
+        
+        if (!user) {
+          throw new Error('No existe una cuenta con este email');
+        }
+        
+        if (user.password !== credentials.password) {
+          throw new Error('Contraseña incorrecta');
+        }
+        
         const mockUser: User = {
-          id: 'demo_user_' + Date.now(),
-          email: credentials.email,
-          name: credentials.email.split('@')[0],
+          id: user.id,
+          email: user.email,
+          name: user.name,
         };
         
         if (remember) {
@@ -124,10 +140,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           isLoading: false,
         });
         
+        console.log('Login successful in production mode');
         return true;
       }
 
       const result = await standaloneClient.auth.login.mutate(credentials);
+
+      console.log('Backend login result:', result);
 
       // Store auth if remember is enabled
       if (remember) {
@@ -141,10 +160,32 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         isLoading: false,
       });
 
+      console.log('Login successful');
       return true;
     } catch (err: any) {
       console.error('Login error:', err);
-      const message = err?.message || 'Error al iniciar sesión. Inténtalo de nuevo.';
+      let message = 'Error al iniciar sesión. Inténtalo de nuevo.';
+      
+      // Try to extract a more specific error message
+      if (err?.message && typeof err.message === 'string') {
+        message = err.message;
+      } else if (err?.data?.message && typeof err.data.message === 'string') {
+        message = err.data.message;
+      } else if (err?.shape?.message && typeof err.shape.message === 'string') {
+        message = err.shape.message;
+      } else if (typeof err === 'string') {
+        message = err;
+      }
+      
+      // Handle specific error types
+      if (message.includes('UNAUTHORIZED') || message.includes('Credenciales inválidas')) {
+        message = 'Email o contraseña incorrectos';
+      } else if (message.includes('BAD_REQUEST')) {
+        message = 'Datos inválidos. Verifica la información ingresada';
+      } else if (message.includes('fetch') || message.includes('network') || message.includes('Failed to fetch')) {
+        message = 'No se pudo conectar con el servidor. Verifica tu conexión a internet.';
+      }
+      
       setError({ message });
       setAuthState(prev => ({ ...prev, isLoading: false }));
       return false;
@@ -155,6 +196,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     try {
       setError(null);
       setAuthState(prev => ({ ...prev, isLoading: true }));
+
+      console.log('Starting registration process...');
 
       // Validate credentials before sending
       if (!credentials.email || !credentials.email.trim()) {
@@ -169,20 +212,36 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         throw new Error('El nombre es requerido');
       }
 
-      // In production without backend, simulate registration
+      // In production without backend, simulate registration with validation
       if (process.env.NODE_ENV === 'production') {
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Don't auto-login in production mode either
+        // Simulate email validation - check if email already exists in storage
+        const existingUsers = await AsyncStorage.getItem('demo_users');
+        const users = existingUsers ? JSON.parse(existingUsers) : [];
+        
+        if (users.find((user: any) => user.email.toLowerCase() === credentials.email.toLowerCase().trim())) {
+          throw new Error('Ya existe una cuenta con este email');
+        }
+        
+        // Add user to demo storage
+        const newUser = {
+          id: 'demo_user_' + Date.now(),
+          email: credentials.email.toLowerCase().trim(),
+          name: credentials.name.trim(),
+          password: credentials.password // In real app this would be hashed
+        };
+        users.push(newUser);
+        await AsyncStorage.setItem('demo_users', JSON.stringify(users));
+        
+        // Don't auto-login in production mode
         setAuthState({
           user: null,
           isAuthenticated: false,
           isLoading: false,
         });
         
-        // Show success message
-        setError({ message: 'Cuenta creada exitosamente. Por favor inicia sesión.' });
-        
+        console.log('Registration successful in production mode');
         return true;
       }
 
@@ -191,6 +250,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         password: credentials.password,
         name: credentials.name.trim(),
       });
+
+      console.log('Backend registration result:', result);
 
       // Validate response
       if (!result || !result.success) {
@@ -204,11 +265,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         isLoading: false,
       });
 
-      // Show success message
-      setError({ message: result.message });
-
+      console.log('Registration successful, user should login manually');
       return true;
     } catch (err: any) {
+      console.error('Registration error:', err);
       let message = 'Error al crear la cuenta. Inténtalo de nuevo.';
       
       // Try to extract a more specific error message

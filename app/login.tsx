@@ -84,8 +84,14 @@ export default function LoginScreen() {
         
         console.log('Registration result:', success);
         if (success) {
-          console.log('Registration successful, navigating to goals...');
-          router.replace('/(tabs)/goals');
+          console.log('Registration successful, switching to login mode...');
+          // Switch to login mode after successful registration
+          setIsRegisterMode(false);
+          setEmail(email.trim()); // Keep the email for easy login
+          setPassword('');
+          setConfirmPassword('');
+          setName('');
+          Alert.alert('Éxito', 'Cuenta creada exitosamente. Ahora puedes iniciar sesión.');
         } else {
           console.log('Registration failed, error should be displayed');
         }
