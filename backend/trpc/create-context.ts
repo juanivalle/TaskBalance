@@ -5,7 +5,10 @@ import jwt from 'jsonwebtoken';
 
 // Context creation function
 export const createContext = async (opts: FetchCreateContextFnOptions) => {
-  console.log('Creating tRPC context for request:', opts.req.method, opts.req.url);
+  console.log('=== CREATING tRPC CONTEXT ===');
+  console.log('Request method:', opts.req.method);
+  console.log('Request URL:', opts.req.url);
+  console.log('Request headers:', Object.fromEntries(opts.req.headers.entries()));
   
   return {
     req: opts.req,
@@ -58,11 +61,14 @@ const authMiddleware = t.middleware(async ({ ctx, next }) => {
     if (token.startsWith('demo_token_') || token.startsWith('google_token_')) {
       console.log('Using demo token for authentication');
       
-      // Extract user info from stored auth or create a demo user
+      // For demo tokens, extract timestamp to create a unique user ID
+      const timestamp = token.split('_').pop() || Date.now().toString();
+      const isGoogle = token.includes('google');
+      
       const demoUser = {
-        userId: token.includes('google') ? 'google_demo_user' : 'demo_user_123',
-        email: 'demo@taskbalance.com',
-        name: 'Usuario Demo',
+        userId: isGoogle ? `google_demo_user_${timestamp}` : `demo_user_${timestamp}`,
+        email: isGoogle ? 'demo@gmail.com' : 'demo@taskbalance.com',
+        name: isGoogle ? 'Usuario Demo Google' : 'Usuario Demo',
       };
       
       console.log('Demo user authenticated:', demoUser);
@@ -97,9 +103,22 @@ const authMiddleware = t.middleware(async ({ ctx, next }) => {
     console.error('=== AUTH MIDDLEWARE ERROR ===');
     console.error('Token verification failed:', error);
     console.error('Token was:', token.substring(0, 50) + '...');
+    
+    // Provide more specific error messages
+    let errorMessage = 'Token de autenticación inválido';
+    if (error instanceof Error) {
+      if (error.message.includes('jwt expired')) {
+        errorMessage = 'Token de autenticación expirado. Por favor inicia sesión nuevamente.';
+      } else if (error.message.includes('jwt malformed')) {
+        errorMessage = 'Token de autenticación mal formado';
+      } else if (error.message.includes('invalid signature')) {
+        errorMessage = 'Token de autenticación con firma inválida';
+      }
+    }
+    
     throw new TRPCError({
       code: 'UNAUTHORIZED',
-      message: 'Token de autenticación inválido',
+      message: errorMessage,
     });
   }
 });

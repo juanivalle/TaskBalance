@@ -109,17 +109,34 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       if (process.env.NODE_ENV === 'production') {
         await new Promise(resolve => setTimeout(resolve, 1000));
         
+        // Validate input
+        if (!credentials.email || !credentials.email.trim()) {
+          throw new Error('El email es requerido');
+        }
+        
+        if (!credentials.password || !credentials.password.trim()) {
+          throw new Error('La contraseña es requerida');
+        }
+        
         // Check if user exists in demo storage
         const existingUsers = await AsyncStorage.getItem('demo_users');
         const users = existingUsers ? JSON.parse(existingUsers) : [];
         
-        const user = users.find((u: any) => u.email.toLowerCase() === credentials.email.toLowerCase().trim());
+        console.log('Looking for user in production mode:', credentials.email.toLowerCase().trim());
+        console.log('Available users:', users.map((u: any) => u.email));
+        
+        const user = users.find((u: any) => 
+          u.email.toLowerCase() === credentials.email.toLowerCase().trim()
+        );
         
         if (!user) {
+          console.log('Login failed: User not found in production mode');
           throw new Error('No existe una cuenta con este email');
         }
         
+        // Verify password
         if (user.password !== credentials.password) {
+          console.log('Login failed: Invalid password in production mode');
           throw new Error('Contraseña incorrecta');
         }
         
@@ -220,8 +237,26 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         const existingUsers = await AsyncStorage.getItem('demo_users');
         const users = existingUsers ? JSON.parse(existingUsers) : [];
         
-        if (users.find((user: any) => user.email.toLowerCase() === credentials.email.toLowerCase().trim())) {
+        // Check for existing user with proper case-insensitive comparison
+        const existingUser = users.find((user: any) => 
+          user.email.toLowerCase() === credentials.email.toLowerCase().trim()
+        );
+        
+        if (existingUser) {
+          console.log('Registration failed: User already exists in production mode');
           throw new Error('Ya existe una cuenta con este email');
+        }
+        
+        // Validate password requirements
+        const passwordRegex = {
+          minLength: credentials.password.length >= 8,
+          hasLowercase: /[a-z]/.test(credentials.password),
+          hasUppercase: /[A-Z]/.test(credentials.password),
+          hasNumber: /[0-9]/.test(credentials.password),
+        };
+        
+        if (!Object.values(passwordRegex).every(Boolean)) {
+          throw new Error('La contraseña no cumple con los requisitos de seguridad');
         }
         
         // Add user to demo storage
@@ -234,14 +269,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         users.push(newUser);
         await AsyncStorage.setItem('demo_users', JSON.stringify(users));
         
-        // Don't auto-login in production mode
+        // IMPORTANT: Don't auto-login after registration
         setAuthState({
           user: null,
           isAuthenticated: false,
           isLoading: false,
         });
         
-        console.log('Registration successful in production mode');
+        console.log('Registration successful in production mode - user must login manually');
         return true;
       }
 

@@ -304,23 +304,30 @@ export const [HomeProvider, useHome] = createContextHook(() => {
       console.log('Environment:', process.env.NODE_ENV);
       
       if (!user) {
+        console.error('User not authenticated');
         throw new Error('Usuario no autenticado');
+      }
+      
+      // Validate input
+      if (!data.name || !data.name.trim()) {
+        throw new Error('El nombre del hogar es requerido');
       }
       
       // In production without backend, create a mock household
       if (process.env.NODE_ENV === 'production') {
         console.log('Production mode: Creating mock household');
         
+        const householdId = 'household_' + Date.now();
         const mockHousehold: Household = {
-          id: 'household_' + Date.now(),
-          name: data.name,
-          description: data.description,
+          id: householdId,
+          name: data.name.trim(),
+          description: data.description?.trim(),
           createdAt: new Date().toISOString(),
           members: [
             {
               id: 'member_' + Date.now(),
               userId: user.id,
-              householdId: 'household_' + Date.now(),
+              householdId: householdId,
               name: user.name,
               email: user.email,
               points: 0,
@@ -337,10 +344,21 @@ export const [HomeProvider, useHome] = createContextHook(() => {
         return;
       }
       
+      // Check if we have a valid token
+      const token = await AsyncStorage.getItem('taskbalance_token');
+      console.log('Auth token available:', !!token);
+      
+      if (!token) {
+        console.error('No authentication token found');
+        throw new Error('No se encontró el token de autenticación. Por favor inicia sesión nuevamente.');
+      }
+      
+      console.log('Making API call to create household...');
+      
       // Use the standalone client for mutations
       const newHousehold = await standaloneClient.household.create.mutate({
-        name: data.name,
-        description: data.description,
+        name: data.name.trim(),
+        description: data.description?.trim(),
         currency: 'UYU',
       });
       
@@ -376,20 +394,29 @@ export const [HomeProvider, useHome] = createContextHook(() => {
       console.error('Error message:', err instanceof Error ? err.message : String(err));
       console.error('Error stack:', err instanceof Error ? err.stack : 'No stack trace');
       
+      // Handle authentication errors
+      if (err instanceof Error && (err.message.includes('UNAUTHORIZED') || err.message.includes('Token de autenticación'))) {
+        console.log('Authentication error detected');
+        const errorMessage = 'Sesión expirada. Por favor inicia sesión nuevamente.';
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      }
+      
       // If it's a network error and we're not in production, try to create a fallback household
       if (err instanceof Error && (err.message.includes('fetch') || err.message.includes('network') || err.message.includes('Failed to fetch'))) {
         console.log('Network error detected, creating fallback household');
         
+        const householdId = 'household_fallback_' + Date.now();
         const fallbackHousehold: Household = {
-          id: 'household_fallback_' + Date.now(),
-          name: data.name,
-          description: data.description,
+          id: householdId,
+          name: data.name.trim(),
+          description: data.description?.trim(),
           createdAt: new Date().toISOString(),
           members: [
             {
               id: 'member_fallback_' + Date.now(),
               userId: user!.id,
-              householdId: 'household_fallback_' + Date.now(),
+              householdId: householdId,
               name: user!.name,
               email: user!.email,
               points: 0,
@@ -406,9 +433,22 @@ export const [HomeProvider, useHome] = createContextHook(() => {
         return;
       }
       
-      const errorMessage = err instanceof Error ? err.message : 'Error al crear el hogar';
+      // Extract meaningful error message
+      let errorMessage = 'Error al crear el hogar';
+      if (err instanceof Error) {
+        if (err.message.includes('Token de autenticación requerido')) {
+          errorMessage = 'Sesión expirada. Por favor inicia sesión nuevamente.';
+        } else if (err.message.includes('INTERNAL_SERVER_ERROR')) {
+          errorMessage = 'Error interno del servidor. Inténtalo más tarde.';
+        } else if (err.message.includes('BAD_REQUEST')) {
+          errorMessage = 'Datos inválidos. Verifica la información ingresada.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(errorMessage);
-      throw err;
+      throw new Error(errorMessage);
     }
   };
 
