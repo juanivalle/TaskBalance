@@ -24,7 +24,7 @@ interface ContributeModalProps {
 }
 
 export function ContributeModal({ visible, goal, onClose }: ContributeModalProps) {
-  const { contributeToGoal } = useGoals();
+  const { contributeToGoal, getTotalContributedPercentage } = useGoals();
   const { summary, currencySettings } = useFinance();
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -47,29 +47,41 @@ export function ContributeModal({ visible, goal, onClose }: ContributeModalProps
   const handleSubmit = async () => {
     if (!goal) return;
 
-    const contributionAmount = getContributionAmount();
-    if (!contributionAmount || contributionAmount <= 0) {
-      Alert.alert('Error', 'Ingresa un monto válido');
+    const contributionPercentage = getContributionPercentage();
+    if (!contributionPercentage || contributionPercentage <= 0) {
+      Alert.alert('Error', 'Ingresa un porcentaje válido');
       return;
     }
 
     try {
       setIsLoading(true);
-      await contributeToGoal(goal.id, contributionAmount, note.trim() || undefined);
+      await contributeToGoal(goal.id, contributionPercentage, summary.annualSavings, note.trim() || undefined);
       handleClose();
-      
-      const newTotal = goal.currentAmount + contributionAmount;
-      const isCompleted = newTotal >= goal.targetAmount;
-      
-      if (isCompleted) {
-        Alert.alert('¡Felicitaciones!', `¡Has completado tu meta "${goal.title}"! 🎉`);
-      } else {
-        Alert.alert('Éxito', 'Contribución agregada correctamente');
-      }
+      Alert.alert('Éxito', 'Contribución agregada correctamente');
     } catch (error) {
-      Alert.alert('Error', 'No se pudo agregar la contribución');
+      const errorMessage = error instanceof Error ? error.message : 'No se pudo agregar la contribución';
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const getContributionPercentage = () => {
+    if (contributionMode === 'manual') {
+      const manualAmount = parseFloat(amount) || 0;
+      if (summary.annualSavings <= 0) return 0;
+      
+      // Convert manual amount from goal currency to base currency
+      const amountInBaseCurrency = convertCurrency(
+        manualAmount,
+        goal?.currency || 'UYU',
+        currencySettings.baseCurrency,
+        currencySettings.exchangeRates
+      );
+      
+      return (amountInBaseCurrency / summary.annualSavings) * 100;
+    } else {
+      return percentage;
     }
   };
 
@@ -106,7 +118,20 @@ export function ContributeModal({ visible, goal, onClose }: ContributeModalProps
   };
 
   const contributionAmount = getContributionAmount();
-  const newTotal = (goal?.currentAmount || 0) + contributionAmount;
+  const contributionPercentage = getContributionPercentage();
+  const currentTotalPercentage = goal ? getTotalContributedPercentage(goal.id) : 0;
+  const remainingPercentage = Math.max(0, 100 - currentTotalPercentage);
+  const canContribute = contributionPercentage <= remainingPercentage;
+  
+  // Calculate current amount dynamically based on current annual savings
+  const currentAmount = goal ? convertCurrency(
+    (summary.annualSavings * currentTotalPercentage) / 100,
+    currencySettings.baseCurrency,
+    goal.currency,
+    currencySettings.exchangeRates
+  ) : 0;
+  
+  const newTotal = currentAmount + contributionAmount;
   const remaining = Math.max(0, (goal?.targetAmount || 0) - newTotal);
 
   if (!goal) return null;
@@ -142,14 +167,17 @@ export function ContributeModal({ visible, goal, onClose }: ContributeModalProps
               <Text style={styles.goalTitle}>{goal.title}</Text>
             </View>
             <Text style={styles.goalProgress}>
-              {formatCurrency(goal.currentAmount, goal.currency)} / {formatCurrency(goal.targetAmount, goal.currency)}
+              {formatCurrency(currentAmount, goal.currency)} / {formatCurrency(goal.targetAmount, goal.currency)}
+            </Text>
+            <Text style={styles.percentageInfo}>
+              {currentTotalPercentage.toFixed(1)}% del ahorro anual asignado
             </Text>
             <View style={styles.progressBar}>
               <View
                 style={[
                   styles.progressFill,
                   {
-                    width: `${Math.min((goal.currentAmount / goal.targetAmount) * 100, 100)}%`,
+                    width: `${Math.min((currentAmount / goal.targetAmount) * 100, 100)}%`,
                   },
                 ]}
               />
@@ -219,22 +247,25 @@ export function ContributeModal({ visible, goal, onClose }: ContributeModalProps
             ) : (
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Porcentaje del Ahorro Anual ({percentage}%)</Text>
+                <Text style={styles.availablePercentage}>
+                  Disponible: {remainingPercentage.toFixed(1)}%
+                </Text>
                 <View style={styles.sliderContainer}>
                   <Slider
                     style={styles.slider}
                     minimumValue={1}
-                    maximumValue={100}
-                    value={percentage}
-                    onValueChange={setPercentage}
+                    maximumValue={Math.max(1, remainingPercentage)}
+                    value={Math.min(percentage, remainingPercentage)}
+                    onValueChange={(value) => setPercentage(Math.min(value, remainingPercentage))}
                     step={1}
                     minimumTrackTintColor="#3B82F6"
                     maximumTrackTintColor="#E5E7EB"
                     thumbTintColor="#3B82F6"
-                    disabled={isLoading}
+                    disabled={isLoading || remainingPercentage <= 0}
                   />
                   <View style={styles.sliderLabels}>
                     <Text style={styles.sliderLabel}>1%</Text>
-                    <Text style={styles.sliderLabel}>100%</Text>
+                    <Text style={styles.sliderLabel}>{Math.max(1, remainingPercentage).toFixed(0)}%</Text>
                   </View>
                 </View>
                 <Text style={styles.percentageAmount}>
@@ -260,22 +291,41 @@ export function ContributeModal({ visible, goal, onClose }: ContributeModalProps
 
             {/* Preview */}
             {contributionAmount > 0 && (
-              <View style={styles.preview}>
+              <View style={[styles.preview, !canContribute && styles.previewError]}>
                 <Text style={styles.previewTitle}>Vista Previa</Text>
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Porcentaje a contribuir:</Text>
+                  <Text style={[styles.previewValue, !canContribute && styles.previewValueError]}>
+                    {contributionPercentage.toFixed(1)}%
+                  </Text>
+                </View>
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Total asignado:</Text>
+                  <Text style={[styles.previewValue, !canContribute && styles.previewValueError]}>
+                    {(currentTotalPercentage + contributionPercentage).toFixed(1)}%
+                  </Text>
+                </View>
                 <View style={styles.previewRow}>
                   <Text style={styles.previewLabel}>Nuevo total:</Text>
                   <Text style={styles.previewValue}>{formatCurrency(newTotal, goal?.currency || 'UYU')}</Text>
                 </View>
-                {remaining > 0 ? (
+                {!canContribute && (
+                  <View style={styles.errorPreview}>
+                    <Text style={styles.errorText}>
+                      ⚠️ No puedes contribuir más del 100%. Restante: {remainingPercentage.toFixed(1)}%
+                    </Text>
+                  </View>
+                )}
+                {remaining > 0 && canContribute ? (
                   <View style={styles.previewRow}>
                     <Text style={styles.previewLabel}>Restante:</Text>
                     <Text style={styles.previewValue}>{formatCurrency(remaining, goal?.currency || 'UYU')}</Text>
                   </View>
-                ) : (
+                ) : canContribute ? (
                   <View style={styles.completedPreview}>
                     <Text style={styles.completedText}>¡Meta completada! 🎉</Text>
                   </View>
-                )}
+                ) : null}
               </View>
             )}
           </View>
@@ -290,9 +340,9 @@ export function ContributeModal({ visible, goal, onClose }: ContributeModalProps
             <Text style={styles.cancelButtonText}>Cancelar</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.contributeButton, isLoading && styles.contributeButtonDisabled]}
+            style={[styles.contributeButton, (isLoading || !canContribute || !contributionAmount) && styles.contributeButtonDisabled]}
             onPress={handleSubmit}
-            disabled={isLoading || !contributionAmount}
+            disabled={isLoading || !canContribute || !contributionAmount}
           >
             <Text style={styles.contributeButtonText}>
               {isLoading ? 'Agregando...' : 'Contribuir'}
@@ -559,5 +609,35 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#BAE6FD',
+  },
+  percentageInfo: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  availablePercentage: {
+    fontSize: 12,
+    color: '#059669',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  previewError: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  previewValueError: {
+    color: '#DC2626',
+  },
+  errorPreview: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#DC2626',
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

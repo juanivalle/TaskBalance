@@ -15,6 +15,8 @@ export interface GoalContribution {
   id: string;
   goalId: string;
   amount: number;
+  percentage: number; // Percentage of annual savings at time of contribution
+  annualSavingsAtTime: number; // Annual savings amount when contribution was made
   date: string;
   note?: string;
 }

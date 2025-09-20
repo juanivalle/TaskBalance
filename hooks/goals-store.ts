@@ -49,8 +49,16 @@ export const [GoalsProvider, useGoals] = createContextHook(() => {
         currency: goal.currency || 'UYU', // Default to UYU for old goals
       }));
       
+      const loadedContributions = contributionsData ? JSON.parse(contributionsData) : [];
+      // Migrar contribuciones antiguas que no tienen porcentaje
+      const migratedContributions = loadedContributions.map((contrib: any) => ({
+        ...contrib,
+        percentage: contrib.percentage || 0, // Default to 0 for old contributions
+        annualSavingsAtTime: contrib.annualSavingsAtTime || contrib.amount || 0,
+      }));
+      
       setGoals(migratedGoals);
-      setContributions(contributionsData ? JSON.parse(contributionsData) : []);
+      setContributions(migratedContributions);
     } catch (err) {
       console.error('Error loading goals data:', err);
       setError('Error al cargar las metas');
@@ -129,42 +137,36 @@ export const [GoalsProvider, useGoals] = createContextHook(() => {
     }
   };
 
-  const contributeToGoal = async (goalId: string, amount: number, note?: string) => {
+  const contributeToGoal = async (goalId: string, percentage: number, annualSavings: number, note?: string) => {
     try {
       const goal = goals.find(g => g.id === goalId);
       if (!goal) throw new Error('Meta no encontrada');
+
+      // Calculate current total percentage already contributed
+      const currentTotalPercentage = getTotalContributedPercentage(goalId);
+      
+      // Validate that we don't exceed 100%
+      if (currentTotalPercentage + percentage > 100) {
+        throw new Error(`No puedes contribuir más del 100%. Ya has contribuido ${currentTotalPercentage.toFixed(1)}%`);
+      }
+
+      const amount = (annualSavings * percentage) / 100;
 
       const newContribution: GoalContribution = {
         id: Date.now().toString(),
         goalId,
         amount,
+        percentage,
+        annualSavingsAtTime: annualSavings,
         date: new Date().toISOString(),
         note,
       };
 
-      const newCurrentAmount = goal.currentAmount + amount;
-      const isCompleted = newCurrentAmount >= goal.targetAmount;
-
-      const updatedGoals = goals.map(g =>
-        g.id === goalId
-          ? {
-              ...g,
-              currentAmount: newCurrentAmount,
-              isCompleted,
-              updatedAt: new Date().toISOString(),
-            }
-          : g
-      );
-
       const updatedContributions = [...contributions, newContribution];
-
-      await Promise.all([
-        saveGoals(updatedGoals),
-        saveContributions(updatedContributions),
-      ]);
+      await saveContributions(updatedContributions);
       setError(null);
     } catch (err) {
-      setError('Error al contribuir a la meta');
+      setError(err instanceof Error ? err.message : 'Error al contribuir a la meta');
       throw err;
     }
   };
@@ -199,6 +201,23 @@ export const [GoalsProvider, useGoals] = createContextHook(() => {
     return goals.reduce((sum, goal) => sum + goal.currentAmount, 0);
   }, [goals]);
 
+  // Helper function to calculate total contributed percentage for a goal
+  const getTotalContributedPercentage = (goalId: string) => {
+    return contributions
+      .filter(contrib => contrib.goalId === goalId)
+      .reduce((sum, contrib) => sum + contrib.percentage, 0);
+  };
+
+  // Helper function to calculate current amount for a goal based on current annual savings
+  const getCurrentAmount = (goalId: string, currentAnnualSavings: number) => {
+    const goalContributions = contributions.filter(contrib => contrib.goalId === goalId);
+    return goalContributions.reduce((sum, contrib) => {
+      // Calculate current value based on current annual savings
+      const currentValue = (currentAnnualSavings * contrib.percentage) / 100;
+      return sum + currentValue;
+    }, 0);
+  };
+
   const clearError = () => setError(null);
 
   return {
@@ -213,6 +232,8 @@ export const [GoalsProvider, useGoals] = createContextHook(() => {
     updateGoal,
     deleteGoal,
     contributeToGoal,
+    getTotalContributedPercentage,
+    getCurrentAmount,
     clearError,
   };
 });

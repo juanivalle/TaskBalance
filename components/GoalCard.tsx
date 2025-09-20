@@ -8,7 +8,8 @@ import {
 } from 'react-native';
 import { Target, Plus, Edit3, Trash2 } from 'lucide-react-native';
 import { useGoals } from '@/hooks/goals-store';
-import { formatCurrency } from '@/constants/currencies';
+import { useFinance } from '@/hooks/finance-store';
+import { formatCurrency, convertCurrency } from '@/constants/currencies';
 import type { Goal } from '@/types/goals';
 
 interface GoalCardProps {
@@ -18,13 +19,23 @@ interface GoalCardProps {
 }
 
 export function GoalCard({ goal, onContribute, onEdit }: GoalCardProps) {
-  const { deleteGoal } = useGoals();
+  const { deleteGoal, getTotalContributedPercentage, getCurrentAmount } = useGoals();
+  const { summary, currencySettings } = useFinance();
   const [isDeleting, setIsDeleting] = useState(false);
 
-
-
-  const progress = goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0;
-  const remaining = Math.max(0, goal.targetAmount - goal.currentAmount);
+  // Calculate current amount dynamically based on current annual savings
+  const currentAmount = getCurrentAmount(goal.id, summary.annualSavings);
+  const currentAmountInGoalCurrency = convertCurrency(
+    currentAmount,
+    currencySettings.baseCurrency,
+    goal.currency,
+    currencySettings.exchangeRates
+  );
+  
+  const contributedPercentage = getTotalContributedPercentage(goal.id);
+  const progress = goal.targetAmount > 0 ? (currentAmountInGoalCurrency / goal.targetAmount) * 100 : 0;
+  const remaining = Math.max(0, goal.targetAmount - currentAmountInGoalCurrency);
+  const isCompleted = currentAmountInGoalCurrency >= goal.targetAmount;
 
   const getPriorityColor = (priority: Goal['priority']) => {
     switch (priority) {
@@ -77,15 +88,15 @@ export function GoalCard({ goal, onContribute, onEdit }: GoalCardProps) {
   };
 
   return (
-    <View style={[styles.container, goal.isCompleted && styles.completedContainer]}>
+    <View style={[styles.container, isCompleted && styles.completedContainer]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.titleContainer}>
           <View style={styles.iconContainer}>
-            <Target size={20} color={goal.isCompleted ? '#10B981' : '#3B82F6'} />
+            <Target size={20} color={isCompleted ? '#10B981' : '#3B82F6'} />
           </View>
           <View style={styles.titleTextContainer}>
-            <Text style={[styles.title, goal.isCompleted && styles.completedTitle]}>
+            <Text style={[styles.title, isCompleted && styles.completedTitle]}>
               {goal.title}
             </Text>
             <View style={styles.priorityContainer}>
@@ -128,35 +139,38 @@ export function GoalCard({ goal, onContribute, onEdit }: GoalCardProps) {
       <View style={styles.progressContainer}>
         <View style={styles.progressHeader}>
           <Text style={styles.progressText}>
-            {formatCurrency(goal.currentAmount, goal.currency)} / {formatCurrency(goal.targetAmount, goal.currency)}
+            {formatCurrency(currentAmountInGoalCurrency, goal.currency)} / {formatCurrency(goal.targetAmount, goal.currency)}
           </Text>
-          <Text style={[styles.progressPercentage, goal.isCompleted && styles.completedText]}>
+          <Text style={[styles.progressPercentage, isCompleted && styles.completedText]}>
             {Math.round(progress)}%
           </Text>
         </View>
+        <Text style={styles.contributionInfo}>
+          {contributedPercentage.toFixed(1)}% del ahorro anual asignado
+        </Text>
         <View style={styles.progressBar}>
           <View
             style={[
               styles.progressFill,
               {
                 width: `${Math.min(progress, 100)}%`,
-                backgroundColor: goal.isCompleted ? '#10B981' : '#3B82F6',
+                backgroundColor: isCompleted ? '#10B981' : '#3B82F6',
               },
             ]}
           />
         </View>
-        {!goal.isCompleted && remaining > 0 && (
+        {!isCompleted && remaining > 0 && (
           <Text style={styles.remainingText}>
             Faltan {formatCurrency(remaining, goal.currency)}
           </Text>
         )}
-        {goal.isCompleted && (
+        {isCompleted && (
           <Text style={styles.completedBadge}>¡Meta Completada! 🎉</Text>
         )}
       </View>
 
       {/* Actions */}
-      {!goal.isCompleted && (
+      {!isCompleted && (
         <TouchableOpacity style={styles.contributeButton} onPress={onContribute}>
           <Plus size={16} color="white" />
           <Text style={styles.contributeButtonText}>Contribuir</Text>
@@ -262,6 +276,11 @@ const styles = StyleSheet.create({
   },
   completedText: {
     color: '#10B981',
+  },
+  contributionInfo: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 8,
   },
   progressBar: {
     height: 8,
