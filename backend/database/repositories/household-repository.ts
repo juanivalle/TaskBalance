@@ -29,6 +29,7 @@ export class HouseholdRepository {
   private db = isProduction ? null : getDatabase();
 
   async findById(id: string): Promise<Household | undefined> {
+    console.log('Finding household by ID:', id);
     if (isProduction) {
       const result = await sql`
         SELECT id, name, description, currency, created_by as "createdBy",
@@ -36,6 +37,7 @@ export class HouseholdRepository {
         FROM households 
         WHERE id = ${id}
       `;
+      console.log('PostgreSQL findById result:', result.rows[0]);
       return result.rows[0] as Household | undefined;
     } else {
       const stmt = this.db!.prepare(`
@@ -45,7 +47,9 @@ export class HouseholdRepository {
         WHERE id = ?
       `);
       
-      return stmt.get(id) as Household | undefined;
+      const result = stmt.get(id) as Household | undefined;
+      console.log('SQLite findById result:', result);
+      return result;
     }
   }
 
@@ -108,15 +112,27 @@ export class HouseholdRepository {
         throw error;
       }
     } else {
+      console.log('Using SQLite for household creation');
       // SQLite transaction
       const transaction = this.db!.transaction(() => {
+        console.log('Starting SQLite transaction...');
+        
         // Create household
         const insertHousehold = this.db!.prepare(`
           INSERT INTO households (id, name, description, currency, created_by, created_at, updated_at)
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `);
         
-        insertHousehold.run(
+        console.log('Inserting household with data:', {
+          id,
+          name: householdData.name.trim(),
+          description: householdData.description?.trim() || null,
+          currency: householdData.currency || 'UYU',
+          createdBy: householdData.createdBy,
+          now
+        });
+        
+        const householdResult = insertHousehold.run(
           id,
           householdData.name.trim(),
           householdData.description?.trim() || null,
@@ -126,6 +142,8 @@ export class HouseholdRepository {
           now
         );
         
+        console.log('Household insert result:', householdResult);
+        
         // Add creator as admin member
         const insertMember = this.db!.prepare(`
           INSERT INTO household_members (id, household_id, user_id, role, joined_at)
@@ -133,9 +151,19 @@ export class HouseholdRepository {
         `);
         
         const memberId = `member_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        insertMember.run(memberId, id, householdData.createdBy, 'owner', now);
+        console.log('Inserting member with data:', {
+          memberId,
+          householdId: id,
+          userId: householdData.createdBy,
+          role: 'owner',
+          joinedAt: now
+        });
+        
+        const memberResult = insertMember.run(memberId, id, householdData.createdBy, 'owner', now);
+        console.log('Member insert result:', memberResult);
       });
       
+      console.log('Executing SQLite transaction...');
       transaction();
       console.log('SQLite transaction completed successfully');
     }

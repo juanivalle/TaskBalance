@@ -4,7 +4,7 @@ import { TRPCError } from '@trpc/server';
 import { householdRepository } from '@/backend/database/repositories/household-repository';
 
 const createHouseholdSchema = z.object({
-  name: z.string().min(1, 'El nombre es requerido').max(100, 'El nombre es muy largo'),
+  name: z.string().min(1, 'El nombre es requerido').max(100, 'El nombre es muy largo').trim(),
   description: z.string().optional(),
   currency: z.string().optional().default('UYU'),
 });
@@ -15,31 +15,31 @@ export const createHouseholdProcedure = protectedProcedure
     const { name, description, currency } = input;
     const { user } = ctx;
 
+    console.log('=== BACKEND: CREATING HOUSEHOLD START ===');
+    console.log('Input data:', { name, description, currency, userId: user.userId });
+    console.log('User context:', user);
+    console.log('Environment:', process.env.NODE_ENV);
+    console.log('Is Production:', process.env.VERCEL || process.env.NODE_ENV === 'production');
+    console.log('Database connection available:', !!householdRepository);
+    
+    // Validate input again on backend
+    if (!name || !name.trim()) {
+      console.error('Backend validation failed: empty name');
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'El nombre del hogar es requerido',
+      });
+    }
+    
+    if (!user || !user.userId) {
+      console.error('Backend validation failed: no user');
+      throw new TRPCError({
+        code: 'UNAUTHORIZED',
+        message: 'Usuario no autenticado',
+      });
+    }
+    
     try {
-      console.log('=== BACKEND: CREATING HOUSEHOLD START ===');
-      console.log('Input data:', { name, description, currency, userId: user.userId });
-      console.log('User context:', user);
-      console.log('Environment:', process.env.NODE_ENV);
-      console.log('Is Production:', process.env.VERCEL || process.env.NODE_ENV === 'production');
-      console.log('Database connection available:', !!householdRepository);
-      
-      // Validate input again on backend
-      if (!name || !name.trim()) {
-        console.error('Backend validation failed: empty name');
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'El nombre del hogar es requerido',
-        });
-      }
-      
-      if (!user || !user.userId) {
-        console.error('Backend validation failed: no user');
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'Usuario no autenticado',
-        });
-      }
-      
       console.log('Creating household with repository...');
       const household = await householdRepository.create({
         name: name.trim(),
@@ -79,13 +79,8 @@ export const createHouseholdProcedure = protectedProcedure
       console.error('Error message:', error instanceof Error ? error.message : String(error));
       console.error('Error name:', error instanceof Error ? error.name : 'Unknown error type');
       
-      // If it's already a TRPCError, re-throw it
-      if (error instanceof TRPCError) {
-        throw error;
-      }
-      
+      // Handle specific database errors
       if (error instanceof Error) {
-        // Handle specific database errors
         if (error.message.includes('UNIQUE constraint failed') || error.message.includes('duplicate key')) {
           throw new TRPCError({
             code: 'CONFLICT',
@@ -97,6 +92,13 @@ export const createHouseholdProcedure = protectedProcedure
           throw new TRPCError({
             code: 'BAD_REQUEST',
             message: 'Usuario no válido',
+          });
+        }
+        
+        if (error.message.includes('Failed to create household')) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'No se pudo crear el hogar. Verifica que todos los datos sean correctos.',
           });
         }
         

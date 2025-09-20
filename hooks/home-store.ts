@@ -297,91 +297,109 @@ export const [HomeProvider, useHome] = createContextHook(() => {
   };
 
   const createHousehold = async (data: { name: string; description?: string }) => {
+    console.log('=== CLIENT: Creating household ===');
+    console.log('Input data:', data);
+    console.log('User:', user);
+    console.log('Environment:', process.env.NODE_ENV);
+    console.log('Backend URL:', process.env.EXPO_PUBLIC_RORK_API_BASE_URL);
+    
+    if (!user) {
+      console.error('User not authenticated');
+      const errorMessage = 'Usuario no autenticado';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+    
+    // Validate input
+    if (!data.name || !data.name.trim()) {
+      const errorMessage = 'El nombre del hogar es requerido';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+    
+    // Check if we have a valid token
+    const token = await AsyncStorage.getItem('taskbalance_token');
+    console.log('Auth token available:', !!token);
+    console.log('Token preview:', token ? token.substring(0, 20) + '...' : 'No token');
+    
+    if (!token) {
+      console.error('No authentication token found');
+      const errorMessage = 'No se encontró el token de autenticación. Por favor inicia sesión nuevamente.';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+    
     try {
-      console.log('=== CLIENT: Creating household ===');
-      console.log('Input data:', data);
-      console.log('User:', user);
-      console.log('Environment:', process.env.NODE_ENV);
-      console.log('Backend URL:', process.env.EXPO_PUBLIC_RORK_API_BASE_URL);
-      
-      if (!user) {
-        console.error('User not authenticated');
-        throw new Error('Usuario no autenticado');
-      }
-      
-      // Validate input
-      if (!data.name || !data.name.trim()) {
-        throw new Error('El nombre del hogar es requerido');
-      }
-      
-      // Check if we have a valid token
-      const token = await AsyncStorage.getItem('taskbalance_token');
-      console.log('Auth token available:', !!token);
-      console.log('Token preview:', token ? token.substring(0, 20) + '...' : 'No token');
-      
-      if (!token) {
-        console.error('No authentication token found');
-        throw new Error('No se encontró el token de autenticación. Por favor inicia sesión nuevamente.');
-      }
-      
       console.log('Making API call to create household...');
       
-      try {
-        // Use the standalone client for mutations
-        const newHousehold = await standaloneClient.household.create.mutate({
-          name: data.name.trim(),
-          description: data.description?.trim(),
-          currency: 'UYU',
-        });
-        
-        console.log('=== CLIENT: Household created via API ===');
-        console.log('API Response:', newHousehold);
-        
-        // Convert API response to our format
-        const householdForState: Household = {
-          id: newHousehold.id,
-          name: newHousehold.name,
-          description: newHousehold.description || undefined,
-          createdAt: newHousehold.createdAt,
-          members: newHousehold.members.map(member => ({
-            id: member.id,
-            userId: member.userId,
-            householdId: member.householdId,
-            name: member.name,
-            email: member.email,
-            points: member.points,
-            role: member.role as 'owner' | 'member',
-            joinedAt: member.joinedAt,
-          })),
-        };
-        
-        const updatedHouseholds = [...households, householdForState];
-        setHouseholds(updatedHouseholds);
-        setError(null);
-        console.log('=== CLIENT: Household added to state ===');
-        console.log('State data:', householdForState);
-        return;
-      } catch (apiError) {
-        console.error('=== API ERROR ===');
-        console.error('API Error:', apiError);
-        console.error('API Error message:', apiError instanceof Error ? apiError.message : String(apiError));
-        
+      // Use the standalone client for mutations
+      const newHousehold = await standaloneClient.household.create.mutate({
+        name: data.name.trim(),
+        description: data.description?.trim(),
+        currency: 'UYU',
+      });
+      
+      console.log('=== CLIENT: Household created via API ===');
+      console.log('API Response:', newHousehold);
+      
+      // Convert API response to our format
+      const householdForState: Household = {
+        id: newHousehold.id,
+        name: newHousehold.name,
+        description: newHousehold.description || undefined,
+        createdAt: newHousehold.createdAt,
+        members: newHousehold.members.map(member => ({
+          id: member.id,
+          userId: member.userId,
+          householdId: member.householdId,
+          name: member.name,
+          email: member.email,
+          points: member.points,
+          role: member.role as 'owner' | 'member',
+          joinedAt: member.joinedAt,
+        })),
+      };
+      
+      const updatedHouseholds = [...households, householdForState];
+      setHouseholds(updatedHouseholds);
+      setError(null);
+      console.log('=== CLIENT: Household added to state ===');
+      console.log('State data:', householdForState);
+      
+    } catch (apiError) {
+      console.error('=== API ERROR ===');
+      console.error('API Error:', apiError);
+      console.error('API Error message:', apiError instanceof Error ? apiError.message : String(apiError));
+      
+      // Extract meaningful error message
+      let errorMessage = 'Error al crear el hogar';
+      
+      if (apiError instanceof Error) {
         // Handle authentication errors
-        if (apiError instanceof Error && (apiError.message.includes('UNAUTHORIZED') || apiError.message.includes('Token de autenticación'))) {
+        if (apiError.message.includes('UNAUTHORIZED') || apiError.message.includes('Token de autenticación')) {
           console.log('Authentication error detected');
-          const errorMessage = 'Sesión expirada. Por favor inicia sesión nuevamente.';
-          setError(errorMessage);
-          throw new Error(errorMessage);
+          errorMessage = 'Sesión expirada. Por favor inicia sesión nuevamente.';
         }
-        
-        // If it's a network error, try to create a fallback household
-        if (apiError instanceof Error && (
+        // Handle validation errors
+        else if (apiError.message.includes('BAD_REQUEST') || apiError.message.includes('El nombre del hogar es requerido')) {
+          errorMessage = 'Datos inválidos. Verifica la información ingresada.';
+        }
+        // Handle server errors
+        else if (apiError.message.includes('INTERNAL_SERVER_ERROR')) {
+          errorMessage = 'Error interno del servidor. Inténtalo más tarde.';
+        }
+        // Handle conflict errors
+        else if (apiError.message.includes('CONFLICT') || apiError.message.includes('Ya existe')) {
+          errorMessage = 'Ya existe un hogar con ese nombre';
+        }
+        // Handle network errors - create fallback household
+        else if (
           apiError.message.includes('fetch') || 
           apiError.message.includes('network') || 
           apiError.message.includes('Failed to fetch') ||
           apiError.message.includes('Network request failed') ||
           apiError.message.includes('No se pudo conectar')
-        )) {
+        ) {
           console.log('Network error detected, creating fallback household');
           
           const householdId = 'household_fallback_' + Date.now();
@@ -408,36 +426,15 @@ export const [HomeProvider, useHome] = createContextHook(() => {
           setHouseholds(updatedHouseholds);
           setError(null);
           console.log('=== CLIENT: Fallback household created successfully ===');
-          return;
+          return; // Success with fallback
         }
-        
-        // Re-throw the API error if it's not a network issue
-        throw apiError;
-      }
-    } catch (err) {
-      console.error('=== CLIENT: Error creating household ===');
-      console.error('Error details:', err);
-      console.error('Error message:', err instanceof Error ? err.message : String(err));
-      console.error('Error stack:', err instanceof Error ? err.stack : 'No stack trace');
-      
-      // Extract meaningful error message
-      let errorMessage = 'Error al crear el hogar';
-      if (err instanceof Error) {
-        if (err.message.includes('Token de autenticación requerido') || err.message.includes('UNAUTHORIZED')) {
-          errorMessage = 'Sesión expirada. Por favor inicia sesión nuevamente.';
-        } else if (err.message.includes('INTERNAL_SERVER_ERROR')) {
-          errorMessage = 'Error interno del servidor. Inténtalo más tarde.';
-        } else if (err.message.includes('BAD_REQUEST')) {
-          errorMessage = 'Datos inválidos. Verifica la información ingresada.';
-        } else if (err.message.includes('Usuario no autenticado')) {
-          errorMessage = err.message;
-        } else if (err.message.includes('El nombre del hogar es requerido')) {
-          errorMessage = err.message;
-        } else {
-          errorMessage = err.message;
+        // Use the actual error message if available
+        else {
+          errorMessage = apiError.message;
         }
       }
       
+      console.error('Final error message:', errorMessage);
       setError(errorMessage);
       throw new Error(errorMessage);
     }

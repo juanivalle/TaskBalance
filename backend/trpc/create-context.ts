@@ -72,12 +72,11 @@ const authMiddleware = t.middleware(async ({ ctx, next }) => {
     if (token.startsWith('demo_token_') || token.startsWith('google_token_')) {
       console.log('Processing demo token for authentication');
       
-      // For demo tokens, extract timestamp to create a unique user ID
-      const timestamp = token.split('_').pop() || Date.now().toString();
+      // For demo tokens, use consistent user IDs that match the database
       const isGoogle = token.includes('google');
       
       const demoUser = {
-        userId: isGoogle ? `google_demo_user_${timestamp}` : `demo_user_${timestamp}`,
+        userId: isGoogle ? 'google_demo_user' : 'demo1', // Use consistent IDs that exist in DB
         email: isGoogle ? 'demo@gmail.com' : 'demo@taskbalance.com',
         name: isGoogle ? 'Usuario Demo Google' : 'Usuario Demo',
       };
