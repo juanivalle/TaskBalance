@@ -5,7 +5,8 @@ CREATE TABLE IF NOT EXISTS users (
   password TEXT,
   name TEXT NOT NULL,
   provider TEXT NOT NULL DEFAULT 'email',
-  google_id TEXT UNIQUE,
+  google_id TEXT,
+  avatar_url TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -15,11 +16,11 @@ CREATE TABLE IF NOT EXISTS households (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
-  currency TEXT DEFAULT 'USD',
+  currency TEXT DEFAULT 'UYU',
   created_by TEXT NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (created_by) REFERENCES users(id)
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Household members table

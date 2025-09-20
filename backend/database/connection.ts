@@ -111,13 +111,24 @@ async function initializePostgresSchema() {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         description TEXT,
-        currency TEXT DEFAULT 'USD',
+        currency TEXT DEFAULT 'UYU',
         created_by TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `;
+    
+    // Add foreign key constraint separately for PostgreSQL compatibility
+    try {
+      await sql`
+        ALTER TABLE households 
+        ADD CONSTRAINT fk_households_created_by 
+        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+      `;
+    } catch (error) {
+      // Constraint might already exist, ignore error
+      console.log('Foreign key constraint might already exist:', error);
+    }
 
     console.log('Creating household_members table...');
     await sql`
@@ -127,46 +138,107 @@ async function initializePostgresSchema() {
         user_id TEXT NOT NULL,
         role TEXT DEFAULT 'member',
         joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         UNIQUE(household_id, user_id)
       )
     `;
+    
+    // Add foreign key constraints separately for PostgreSQL compatibility
+    try {
+      await sql`
+        ALTER TABLE household_members 
+        ADD CONSTRAINT fk_household_members_household_id 
+        FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE
+      `;
+    } catch (error) {
+      console.log('Foreign key constraint might already exist:', error);
+    }
+    
+    try {
+      await sql`
+        ALTER TABLE household_members 
+        ADD CONSTRAINT fk_household_members_user_id 
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      `;
+    } catch (error) {
+      console.log('Foreign key constraint might already exist:', error);
+    }
 
     console.log('Creating transactions table...');
     await sql`
       CREATE TABLE IF NOT EXISTS transactions (
         id TEXT PRIMARY KEY,
-        household_id TEXT NOT NULL,
+        household_id TEXT,
         user_id TEXT NOT NULL,
-        type TEXT NOT NULL,
-        category TEXT NOT NULL,
+        title TEXT NOT NULL,
         amount DECIMAL(10,2) NOT NULL,
-        description TEXT,
+        category TEXT NOT NULL,
+        type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
         date TIMESTAMP NOT NULL,
+        description TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `;
+    
+    // Add foreign key constraints separately
+    try {
+      await sql`
+        ALTER TABLE transactions 
+        ADD CONSTRAINT fk_transactions_household_id 
+        FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE SET NULL
+      `;
+    } catch (error) {
+      console.log('Foreign key constraint might already exist:', error);
+    }
+    
+    try {
+      await sql`
+        ALTER TABLE transactions 
+        ADD CONSTRAINT fk_transactions_user_id 
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      `;
+    } catch (error) {
+      console.log('Foreign key constraint might already exist:', error);
+    }
 
     console.log('Creating goals table...');
     await sql`
       CREATE TABLE IF NOT EXISTS goals (
         id TEXT PRIMARY KEY,
-        household_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        description TEXT,
+        user_id TEXT NOT NULL,
+        household_id TEXT,
+        title TEXT NOT NULL,
         target_amount DECIMAL(10,2) NOT NULL,
         current_amount DECIMAL(10,2) DEFAULT 0,
         target_date TIMESTAMP,
-        created_by TEXT NOT NULL,
+        category TEXT,
+        description TEXT,
+        is_completed BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE,
-        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `;
+    
+    // Add foreign key constraints separately
+    try {
+      await sql`
+        ALTER TABLE goals 
+        ADD CONSTRAINT fk_goals_user_id 
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      `;
+    } catch (error) {
+      console.log('Foreign key constraint might already exist:', error);
+    }
+    
+    try {
+      await sql`
+        ALTER TABLE goals 
+        ADD CONSTRAINT fk_goals_household_id 
+        FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE SET NULL
+      `;
+    } catch (error) {
+      console.log('Foreign key constraint might already exist:', error);
+    }
 
     console.log('✅ PostgreSQL schema initialized successfully');
     

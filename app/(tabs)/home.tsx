@@ -24,6 +24,7 @@ import {
 } from 'lucide-react-native';
 import { useHome, getPreviousWeek, getNextWeek } from '@/hooks/home-store';
 import { useTheme } from '@/hooks/theme-store';
+import { standaloneClient } from '@/lib/trpc';
 import { CreateTaskModal } from '@/components/CreateTaskModal';
 import { CreateHouseholdModal } from '@/components/CreateHouseholdModal';
 import { TaskOccurrenceItem } from '@/components/TaskOccurrenceItem';
@@ -56,6 +57,7 @@ export default function HomeScreen() {
   const [showCreateHouseholdModal, setShowCreateHouseholdModal] = useState(false);
   const [showInviteUserModal, setShowInviteUserModal] = useState(false);
   const [showCreateRewardModal, setShowCreateRewardModal] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
   const handlePreviousWeek = () => {
     const previousWeek = getPreviousWeek(selectedWeek);
@@ -73,6 +75,31 @@ export default function HomeScreen() {
       Alert.alert('Éxito', 'Semana generada correctamente');
     } catch (error) {
       Alert.alert('Error', 'No se pudo generar la semana');
+    }
+  };
+
+  const handleDebugHousehold = async () => {
+    try {
+      console.log('=== FRONTEND: Testing household debug endpoint ===');
+      const result = await standaloneClient.household.debug.query();
+      console.log('Debug result:', result);
+      setDebugInfo(result);
+      Alert.alert('Debug Info', JSON.stringify(result, null, 2));
+    } catch (error) {
+      console.error('Debug test failed:', error);
+      Alert.alert('Debug Error', error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const handleTestHousehold = async () => {
+    try {
+      console.log('=== FRONTEND: Testing household creation endpoint ===');
+      const result = await standaloneClient.household.test.query();
+      console.log('Test result:', result);
+      Alert.alert('Test Result', JSON.stringify(result, null, 2));
+    } catch (error) {
+      console.error('Household test failed:', error);
+      Alert.alert('Test Error', error instanceof Error ? error.message : String(error));
     }
   };
 
@@ -118,6 +145,22 @@ export default function HomeScreen() {
               <Plus size={16} color="white" />
               <Text style={styles.createHouseholdButtonText}>Crear Hogar</Text>
             </TouchableOpacity>
+            
+            {/* Debug buttons - temporary */}
+            <View style={styles.debugContainer}>
+              <TouchableOpacity
+                style={styles.debugButton}
+                onPress={handleDebugHousehold}
+              >
+                <Text style={styles.debugButtonText}>Debug Info</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.debugButton}
+                onPress={handleTestHousehold}
+              >
+                <Text style={styles.debugButtonText}>Test Creation</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Invitations */}
@@ -634,6 +677,22 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   errorButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  debugContainer: {
+    marginTop: 16,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  debugButton: {
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  debugButtonText: {
     color: 'white',
     fontSize: 12,
     fontWeight: '600',
